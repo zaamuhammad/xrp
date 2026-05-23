@@ -1,19 +1,24 @@
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["STREAMLIT_SERVER_ENABLE_STATIC_SERVING"] = "false"
+
 import yfinance as yf
 import streamlit as st
 import numpy as np
 import pandas as pd
 import requests
-import tensorflow as tf
 import plotly.graph_objects as go
 import joblib
 import json
-import os
 from datetime import datetime, timedelta
 import warnings
+
 warnings.filterwarnings("ignore")
+
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 CONFIG_PATH = "config.json"
+
 def load_config(path):
     if os.path.exists(path):
         with open(path) as f:
@@ -410,6 +415,10 @@ def fetch_data(period):
 
 @st.cache_resource
 def load_model_scaler():
+
+    import tensorflow as tf
+    tf.keras.backend.clear_session()
+
     errors = []
     model = None
     scaler = None
@@ -450,12 +459,21 @@ def predict_future(model, scaler, close_arr, window, n):
     return scaler.inverse_transform(np.array(preds).reshape(-1,1)).flatten()
 
 def predict_history(model, scaler, close_arr, window):
+
     scaled = scaler.transform(close_arr.reshape(-1,1))
-    preds  = []
+
+    X = []
+
     for i in range(window, len(scaled)):
-        x = scaled[i-window:i].reshape(1, window, 1)
-        preds.append(model.predict(x, verbose=0)[0][0])
-    inv = scaler.inverse_transform(np.array(preds).reshape(-1,1)).flatten()
+        X.append(scaled[i-window:i])
+
+    X = np.array(X)
+    X = X.reshape((X.shape[0], X.shape[1], 1))
+
+    preds = model.predict(X, verbose=0)
+
+    inv = scaler.inverse_transform(preds).flatten()
+
     return inv
 
 def calc_risk(close_arr, rsi_val=None):
